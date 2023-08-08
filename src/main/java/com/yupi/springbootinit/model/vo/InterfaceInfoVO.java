@@ -1,4 +1,4 @@
-package com.yupi.springbootinit.model.entity;
+package com.yupi.springbootinit.model.vo;
 
 import com.baomidou.mybatisplus.annotation.*;
 import io.swagger.annotations.ApiModelProperty;
@@ -16,7 +16,7 @@ import java.util.Date;
 */
 @Data
 @TableName(value = "interface_info")
-public class InterfaceInfo implements Serializable {
+public class InterfaceInfoVO implements Serializable {
 
     /**
     * 主键
@@ -47,9 +47,6 @@ public class InterfaceInfo implements Serializable {
     private String url;
     /**
      * 请求参数
-     * [
-     *     {"name": "username", "type": "string"},
-     * ]
      */
     @Size(max= -1,message="编码长度不能超过-1")
     @ApiModelProperty("请求参数")
@@ -80,12 +77,6 @@ public class InterfaceInfo implements Serializable {
     @ApiModelProperty("请求类型")
     private String method;
     /**
-    * 创建人
-    */
-    @NotNull(message="[创建人]不能为空")
-    @ApiModelProperty("创建人")
-    private Long userId;
-    /**
     * 创建时间
     */
     @NotNull(message="[创建时间]不能为空")
@@ -97,13 +88,6 @@ public class InterfaceInfo implements Serializable {
     @NotNull(message="[更新时间]不能为空")
     @ApiModelProperty("更新时间")
     private Date updateTime;
-    /**
-    * 是否删除(0-未删, 1-已删)
-    */
-    @NotNull(message="[是否删除(0-未删, 1-已删)]不能为空")
-    @ApiModelProperty("是否删除(0-未删, 1-已删)")
-    @TableLogic
-    private Integer isDelete;
 
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;

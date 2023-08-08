@@ -9,6 +9,7 @@
             <result property="name" column="name" jdbcType="VARCHAR"/>
             <result property="description" column="description" jdbcType="VARCHAR"/>
             <result property="url" column="url" jdbcType="VARCHAR"/>
+            <result property="requestParams" column="requestParams" jdbcType="VARCHAR"/>
             <result property="requestHeader" column="requestHeader" jdbcType="VARCHAR"/>
             <result property="responseHeader" column="responseHeader" jdbcType="VARCHAR"/>
             <result property="status" column="status" jdbcType="INTEGER"/>
@@ -20,8 +21,8 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,name,description,
-        url,request_header,response_header,
+        id,name,description, url,
+        requestParams， request_header,response_header,
         status,method,userId,
         createTime,updateTime,isDelete
     </sql>

@@ -1,22 +1,24 @@
 package com.yupi.springbootinit.controller;
 
+import cn.hutool.Hutool;
+import com.aira.airapiclientsdk.client.AirapiClient;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.google.gson.Gson;
 import com.yupi.springbootinit.annotation.AuthCheck;
-import com.yupi.springbootinit.common.BaseResponse;
-import com.yupi.springbootinit.common.DeleteRequest;
-import com.yupi.springbootinit.common.ErrorCode;
-import com.yupi.springbootinit.common.ResultUtils;
+import com.yupi.springbootinit.common.*;
 import com.yupi.springbootinit.constant.CommonConstant;
 import com.yupi.springbootinit.constant.UserConstant;
 import com.yupi.springbootinit.exception.BusinessException;
 import com.yupi.springbootinit.exception.ThrowUtils;
 import com.yupi.springbootinit.model.dto.interfaceinfo.InterfaceInfoAddRequest;
+import com.yupi.springbootinit.model.dto.interfaceinfo.InterfaceInfoInvokeRequest;
 import com.yupi.springbootinit.model.dto.interfaceinfo.InterfaceInfoQueryRequest;
 import com.yupi.springbootinit.model.dto.interfaceinfo.InterfaceInfoUpdateRequest;
 import com.yupi.springbootinit.model.entity.InterfaceInfo;
 import com.yupi.springbootinit.model.entity.User;
+import com.yupi.springbootinit.model.enums.InterfaceInfoStatusENum;
+import com.yupi.springbootinit.model.vo.InterfaceInfoVO;
 import com.yupi.springbootinit.service.InterfaceInfoService;
 import com.yupi.springbootinit.service.UserService;
 import io.netty.util.internal.StringUtil;
@@ -45,6 +47,9 @@ public class InterfaceInfoController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private AirapiClient airapiClient;
 
     private final static Gson GSON = new Gson();
 
@@ -131,17 +136,20 @@ public class InterfaceInfoController {
      * @param id
      * @return
      */
-//    @GetMapping("/get/vo")
-//    public BaseResponse<InterfaceInfoVO> getinterfaceInfoVOById(long id, HttpServletRequest request) {
-//        if (id <= 0) {
-//            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-//        }
-//        interfaceInfo interfaceInfo = interfaceInfoService.getById(id);
-//        if (interfaceInfo == null) {
-//            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
-//        }
-//        return ResultUtils.success(interfaceInfoService.getinterfaceInfoVO(interfaceInfo, request));
-//    }
+    @GetMapping("/get/{id}")
+    public BaseResponse<InterfaceInfoVO> getinterfaceInfoById(@PathVariable Long id, HttpServletRequest request) {
+        if (id <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        InterfaceInfo interfaceInfo = interfaceInfoService.getById(id);
+        if (interfaceInfo == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
+        InterfaceInfo info = interfaceInfoService.getById(id);
+        InterfaceInfoVO infoVO = new InterfaceInfoVO();
+        BeanUtils.copyProperties(info, infoVO);
+        return ResultUtils.success(infoVO);
+    }
 
     /**
      * 分页获取列表（封装类）
@@ -194,7 +202,7 @@ public class InterfaceInfoController {
         return ResultUtils.success(interfaceInfoPage);
     }
 
-    // endregion
+
 
     /**
      * 分页搜索（从 ES 查询，封装类）
@@ -246,4 +254,88 @@ public class InterfaceInfoController {
 //        return ResultUtils.success(result);
 //    }
 
+    // endregion
+
+    @PostMapping("/online")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> onlineInterfaceInfo(@RequestBody IdRequest idRequest) {
+        if(idRequest == null || idRequest.getId() <= 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        Long id = idRequest.getId();
+        // 判断id是否存在
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        if(oldInterfaceInfo == null){
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
+        if(oldInterfaceInfo.getStatus().equals(InterfaceInfoStatusENum.ONLINE.getValue())){
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口已上线");
+        }
+        // 判断接口是否可以调用
+        com.aira.airapiclientsdk.model.User user = new com.aira.airapiclientsdk.model.User();
+        user.setUserName("wuhu");
+        String userNameByPost = airapiClient.getUserNameByPost(user);
+        if(StringUtils.isBlank(userNameByPost)){
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "接口验证失败");
+        }
+        // 修改数据库状态
+        InterfaceInfo interfaceInfo = new InterfaceInfo();
+        interfaceInfo.setId(id);
+        interfaceInfo.setStatus(InterfaceInfoStatusENum.ONLINE.getValue());
+        boolean result = interfaceInfoService.updateById(interfaceInfo);
+        return ResultUtils.success(result);
+    }
+
+
+    @PostMapping("/offline")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> offlineInterfaceInfo(@RequestBody IdRequest idRequest) {
+        if(idRequest == null || idRequest.getId() <= 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        Long id = idRequest.getId();
+        // 判断id是否存在
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        if(oldInterfaceInfo == null || oldInterfaceInfo.getIsDelete().equals("1")) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
+        if(oldInterfaceInfo.getStatus().equals(InterfaceInfoStatusENum.OFFLINE.getValue())){
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口已下线");
+        }
+        // 修改数据库状态
+        InterfaceInfo interfaceInfo = new InterfaceInfo();
+        interfaceInfo.setId(id);
+        interfaceInfo.setStatus(InterfaceInfoStatusENum.OFFLINE.getValue());
+        boolean result = interfaceInfoService.updateById(interfaceInfo);
+        return ResultUtils.success(result);
+    }
+
+    /*
+    * 测试调用
+    * */
+    @PostMapping("/invoke")
+    public BaseResponse<Object> invokeInterfaceInfo(@RequestBody InterfaceInfoInvokeRequest interfaceInfoInvokeRequest, HttpServletRequest request) {
+        if(interfaceInfoInvokeRequest == null || interfaceInfoInvokeRequest.getId() <= 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        Long id = interfaceInfoInvokeRequest.getId();
+        String userRequestParams = interfaceInfoInvokeRequest.getUserRequestParams();
+        // 判断id是否存在
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        if(oldInterfaceInfo == null || oldInterfaceInfo.getIsDelete().equals("1")) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+        }
+        if(!oldInterfaceInfo.getStatus().equals(InterfaceInfoStatusENum.ONLINE.getValue())){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口已关闭，无法调用");
+        }
+        User currentUser = userService.getLoginUser(request);
+        String accessKey = currentUser.getAccessKey();
+        String secretKey = currentUser.getSecretKey();
+        AirapiClient tempClient = new AirapiClient(accessKey, secretKey);
+        Gson gson = new Gson();
+        com.aira.airapiclientsdk.model.User user = gson.fromJson(userRequestParams, com.aira.airapiclientsdk.model.User.class);
+        user.setUserName(currentUser.getUserName());
+        String res = tempClient.getUserNameByPost(user);
+        return ResultUtils.success(res);
+    }
 }
